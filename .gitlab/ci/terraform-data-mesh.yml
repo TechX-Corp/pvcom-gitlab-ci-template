@@ -1,0 +1,87 @@
+# ============================================
+# Terraform Data Mesh Pipeline Template
+# ============================================
+# Main pipeline that orchestrates detect → lint → security → plan → approve → apply
+# Uses GitLab parallel matrix feature via child pipeline generation
+# ============================================
+
+include:
+  - local: '.gitlab/ci/jobs/detect_changed.yml'
+  - local: '.gitlab/ci/jobs/lint.yml'
+  - local: '.gitlab/ci/jobs/security.yml'
+  - local: '.gitlab/ci/jobs/plan_apply.yml'
+  - local: '.gitlab/ci/templates/terraform-base.yml'
+
+# Detect changed Terraform roots
+detect_changes:
+  extends: .detect_changed_roots
+  stage: .pre
+
+# Generate child pipeline with matrix jobs using GitLab parallel matrix
+# This job generates a child pipeline YAML with parallel matrix jobs
+generate_child_pipeline:
+  stage: prepare
+  image: alpine/git:latest
+  tags:
+    - linux
+    - self-hosted
+  needs:
+    - job: detect_changes
+      artifacts: true
+  before_script:
+    - apk add --no-cache bash jq
+  script:
+    - |
+      set -euo pipefail
+      
+      if [ ! -f "changed-targets.json" ]; then
+        echo "No changed targets - creating empty child pipeline"
+        {
+          echo "stages: []"
+          echo "variables:"
+          echo "  PIPELINE_MODE: \"${PIPELINE_MODE}\""
+          echo "  ENVIRONMENT: \"${ENVIRONMENT}\""
+          echo ""
+          echo "workflow:"
+          echo "  rules:"
+          echo "    - if: '\$CI_PIPELINE_SOURCE == \"parent_pipeline\"'"
+          echo "      when: always"
+          echo "    - when: never"
+          echo ""
+          echo "# No jobs - no targets changed"
+        } > child-pipeline.yml
+        exit 0
+      fi
+      
+      # Use the script to generate child pipeline
+      chmod +x .gitlab/scripts/generate-child-pipeline.sh
+      bash .gitlab/scripts/generate-child-pipeline.sh changed-targets.json "${PIPELINE_MODE}" "${ENVIRONMENT}"
+      
+      echo "Child pipeline generated:"
+      cat child-pipeline.yml
+  artifacts:
+    paths:
+      - child-pipeline.yml
+    expire_in: 1 hour
+  rules:
+    - if: $PIPELINE_MODE == "ci"
+      when: on_success
+    - if: $PIPELINE_MODE == "cd"
+      when: on_success
+    - when: never
+
+# Trigger child pipeline with matrix jobs
+child_pipeline:
+  stage: prepare
+  needs:
+    - job: generate_child_pipeline
+      artifacts: true
+  trigger:
+    include:
+      - artifact: child-pipeline.yml
+        job: generate_child_pipeline
+    strategy: depend
+  rules:
+    - if: '$PIPELINE_MODE == "ci" || $PIPELINE_MODE == "cd"'
+      when: on_success
+    - when: never

@@ -1,0 +1,262 @@
+# ============================================
+# Terraform Plan and Apply Jobs
+# ============================================
+# Handles terraform init, validate, plan, and apply
+# ============================================
+
+.terraform_plan_job:
+  extends: .terraform_base
+  script:
+    - |
+      set -euo pipefail
+      
+      echo "=========================================="
+      echo "Running Terraform plan for ${TARGET}"
+      echo "Environment: ${ENVIRONMENT}"
+      echo "=========================================="
+      
+      # AWS credentials are automatically available from the runner's IAM role
+      # The runner is running on AWS and uses its instance profile/IAM role
+      echo "Using AWS credentials from runner's IAM role"
+      
+      # Verify AWS credentials are available (optional check)
+      if command -v aws &> /dev/null; then
+        echo "Verifying AWS credentials..."
+        aws sts get-caller-identity || {
+          echo "WARNING: Could not verify AWS credentials"
+          echo "Ensure the runner has a valid IAM role attached"
+        }
+      fi
+      
+      # Configure Git for private Terraform modules
+      if [ -n "${TF_MODULES_TOKEN:-}" ]; then
+        echo "Configuring Git for private modules..."
+        git config --global url."https://oauth2:${TF_MODULES_TOKEN}@gitlab.com".insteadOf "https://gitlab.com" || true
+        git config --global url."https://oauth2:${TF_MODULES_TOKEN}@github.com".insteadOf "https://github.com" || true
+      fi
+      
+      # Terraform initialization
+      echo "Running terraform init..."
+      terraform init \
+        -input=false \
+        -upgrade=false \
+        -lock-timeout=300s \
+        || {
+          echo "ERROR: terraform init failed"
+          exit 1
+        }
+      
+      # Terraform validation
+      echo "Running terraform validate..."
+      terraform validate -no-color || {
+        echo "ERROR: terraform validate failed"
+        exit 1
+      }
+      
+      # Load environment-specific variables if they exist
+      # Check both root-level env/ and division-level env/ directories
+      VAR_FILES=""
+      
+      # Root-level env (e.g., /env/development/terraform.tfvars)
+      # Calculate path to root from current TARGET directory
+      ROOT_ENV_PATH=""
+      if [[ "${TARGET}" =~ ^hli/ ]] || [[ "${TARGET}" =~ ^services/ ]]; then
+        # For hli/* or services/*, root is 3 levels up
+        ROOT_ENV_PATH="../../../env/${ENVIRONMENT}/terraform.tfvars"
+      fi
+      
+      if [ -n "${ROOT_ENV_PATH}" ] && [ -f "${ROOT_ENV_PATH}" ]; then
+        echo "Found ${ROOT_ENV_PATH} (root-level)"
+        VAR_FILES="${VAR_FILES} -var-file=${ROOT_ENV_PATH}"
+      fi
+
+      # Division-level env (e.g., hli/infra/env/development/terraform.tfvars)
+      if [ -f "../env/${ENVIRONMENT}/terraform.tfvars" ]; then
+        echo "Found env/${ENVIRONMENT}/terraform.tfvars (division-level)"
+        VAR_FILES="${VAR_FILES} -var-file=../env/${ENVIRONMENT}/terraform.tfvars"
+      fi
+
+      # Current directory terraform.tfvars
+      if [ -f "terraform.tfvars" ]; then
+        echo "Found terraform.tfvars in current directory"
+        VAR_FILES="${VAR_FILES} -var-file=terraform.tfvars"
+      fi
+
+      # Validate VAR_FILES
+      echo "VAR_FILES: ${VAR_FILES}"
+      # Set environment variable for Terraform
+      
+      # Terraform plan
+      echo "Running terraform plan..."
+      terraform plan \
+        -input=false \
+        -no-color \
+        -out="${TF_PLAN_FILE}" \
+        ${VAR_FILES} \
+        2>&1 | tee plan.log || {
+          echo "ERROR: terraform plan failed"
+          cat plan.log
+          exit 1
+        }
+      
+      # Generate plan text output
+      echo "Generating plan text output..."
+      terraform show -no-color "${TF_PLAN_FILE}" > "${TF_PLAN_TEXT}" || {
+        echo "WARNING: Could not generate plan text"
+      }
+      
+      # Display plan summary
+      echo "=========================================="
+      echo "Plan completed for ${TARGET}"
+      echo "Plan file: ${TF_PLAN_FILE}"
+      echo "Plan text: ${TF_PLAN_TEXT}"
+      echo "=========================================="
+      
+      # Show plan summary (if available)
+      if [ -f "${TF_PLAN_TEXT}" ]; then
+        echo "Plan summary:"
+        head -50 "${TF_PLAN_TEXT}" || true
+      fi
+      
+      # Copy artifacts to a predictable location for GitLab
+      # GitLab artifact paths are relative to the job working directory root
+      mkdir -p "${CI_PROJECT_DIR}/artifacts/${TARGET}"
+      cp "${TF_PLAN_FILE}" "${CI_PROJECT_DIR}/artifacts/${TARGET}/" || echo "WARNING: Could not copy plan file"
+      cp "${TF_PLAN_TEXT}" "${CI_PROJECT_DIR}/artifacts/${TARGET}/" || echo "WARNING: Could not copy plan text"
+      cp plan.log "${CI_PROJECT_DIR}/artifacts/${TARGET}/" || echo "WARNING: Could not copy plan log"
+      
+      echo "Artifacts copied to: ${CI_PROJECT_DIR}/artifacts/${TARGET}/"
+      ls -la "${CI_PROJECT_DIR}/artifacts/${TARGET}/" || true
+  artifacts:
+    paths:
+      - artifacts/
+    expire_in: 1 week
+
+.terraform_show_plan_job:
+  extends: .terraform_base
+  script:
+    - |
+      set -euo pipefail
+      
+      echo "=========================================="
+      echo "Displaying Terraform Plan for ${TARGET}"
+      echo "Environment: ${ENVIRONMENT}"
+      echo "=========================================="
+      
+      # Check if plan artifacts exist
+      ARTIFACT_PLAN_FILE="${CI_PROJECT_DIR}/artifacts/${TARGET}/tfplan"
+      ARTIFACT_PLAN_TEXT="${CI_PROJECT_DIR}/artifacts/${TARGET}/plan.txt"
+      
+      if [ ! -f "${ARTIFACT_PLAN_FILE}" ]; then
+        echo "ERROR: Plan file not found in artifacts"
+        echo "Expected: ${ARTIFACT_PLAN_FILE}"
+        echo "This CD pipeline requires plan artifacts from the merge request CI pipeline"
+        ls -la "${CI_PROJECT_DIR}/artifacts/" || echo "No artifacts directory found"
+        exit 1
+      fi
+      
+      echo "Found plan artifacts from merge request"
+      echo ""
+      
+      # Display plan text
+      if [ -f "${ARTIFACT_PLAN_TEXT}" ]; then
+        echo "=========================================="
+        echo "TERRAFORM PLAN OUTPUT:"
+        echo "=========================================="
+        cat "${ARTIFACT_PLAN_TEXT}"
+        echo ""
+        echo "=========================================="
+      else
+        echo "WARNING: Plan text file not found, cannot display plan details"
+      fi
+      
+      echo "Plan review completed for ${TARGET}"
+  artifacts:
+    paths:
+      - artifacts/
+    expire_in: 1 week
+
+.terraform_apply_job:
+  extends: .terraform_base
+  script:
+    - |
+      set -euo pipefail
+      
+      echo "=========================================="
+      echo "Running Terraform apply for ${TARGET}"
+      echo "Environment: ${ENVIRONMENT}"
+      echo "=========================================="
+      
+      # AWS credentials are automatically available from the runner's IAM role
+      # The runner is running on AWS and uses its instance profile/IAM role
+      echo "Using AWS credentials from runner's IAM role"
+      
+      # Configure Git for private modules
+      if [ -n "${TF_MODULES_TOKEN:-}" ]; then
+        echo "Configuring Git for private modules..."
+        git config --global url."https://oauth2:${TF_MODULES_TOKEN}@gitlab.com".insteadOf "https://gitlab.com" || true
+        git config --global url."https://oauth2:${TF_MODULES_TOKEN}@github.com".insteadOf "https://github.com" || true
+      fi
+      
+      # Restore plan file from artifacts directory
+      ARTIFACT_PLAN_FILE="${CI_PROJECT_DIR}/artifacts/${TARGET}/${TF_PLAN_FILE}"
+      if [ ! -f "${ARTIFACT_PLAN_FILE}" ]; then
+        echo "ERROR: Plan file ${ARTIFACT_PLAN_FILE} not found in artifacts"
+        echo "This job requires the plan artifact from the plan stage"
+        echo "Looking for artifacts in: ${CI_PROJECT_DIR}/artifacts/${TARGET}/"
+        ls -la "${CI_PROJECT_DIR}/artifacts/${TARGET}/" || echo "Artifacts directory not found"
+        exit 1
+      fi
+      
+      echo "Found plan file in artifacts: ${ARTIFACT_PLAN_FILE}"
+      echo "Copying plan file to working directory..."
+      cp "${ARTIFACT_PLAN_FILE}" "${TF_PLAN_FILE}"
+      echo "Using plan file: ${TF_PLAN_FILE}"
+      
+      # Terraform initialization
+      echo "Running terraform init..."
+      terraform init \
+        -input=false \
+        -upgrade=false \
+        -lock-timeout=300s \
+        -reconfigure \
+        || {
+          echo "ERROR: terraform init failed"
+          exit 1
+        }
+      
+      # Terraform apply using saved plan
+      echo "Running terraform apply..."
+      terraform apply \
+        -input=false \
+        -no-color \
+        -auto-approve \
+        "${TF_PLAN_FILE}" \
+        2>&1 | tee apply.log || {
+          echo "ERROR: terraform apply failed"
+          cat apply.log
+          exit 1
+        }
+      
+      echo "=========================================="
+      echo "Apply completed for ${TARGET}"
+      echo "=========================================="
+      
+      # Show apply output summary
+      if [ -f "apply.log" ]; then
+        echo "Apply summary:"
+        tail -50 apply.log || true
+      fi
+  artifacts:
+    paths:
+      - apply.log
+    expire_in: 90 days
+  environment:
+    name: ${ENVIRONMENT}
+    action: start
+  when: manual
+  rules:
+    - if: $PIPELINE_MODE == "cd"
+      when: manual
+      allow_failure: false
+

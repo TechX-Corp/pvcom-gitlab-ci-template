@@ -1,0 +1,56 @@
+# ============================================
+# Terraform Base Template
+# ============================================
+# Base configuration for all Terraform jobs
+# Includes AWS authentication, Terraform setup, and common scripts
+# ============================================
+
+.terraform_base:
+  image: hashicorp/terraform:${TERRAFORM_VERSION}
+  tags:
+    - linux
+    - self-hosted
+  before_script:
+    - |
+      # Install additional tools
+      apk add --no-cache bash curl jq git python3 py3-pip
+      
+      # Install tflint (optional)
+      curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash || echo "tflint installation skipped"
+      
+      # Install Checkov (optional - Alpine compatible method)
+      pip3 install --upgrade pip && pip3 install --upgrade setuptools
+      pip3 install checkov || echo "checkov installation skipped"
+      
+      # Setup working directory (only if TARGET is set)
+      if [ -n "${TARGET:-}" ]; then
+        cd "${TARGET}" || { echo "ERROR: Target directory ${TARGET} not found"; exit 1; }
+        echo "Working directory: $(pwd)"
+        echo "Target: ${TARGET}"
+      else
+        echo "Working directory: $(pwd) (root - processing multiple targets)"
+      fi
+      
+      echo "Environment: ${ENVIRONMENT:-unknown}"
+      echo "Pipeline mode: ${PIPELINE_MODE:-unknown}"
+  variables:
+    TF_INPUT: "false"
+    TF_IN_AUTOMATION: "true"
+    TF_PLAN_FILE: "tfplan"
+    TF_PLAN_TEXT: "plan.txt"
+    # AWS configuration
+    # Runner is running on AWS and will use its IAM role (instance profile)
+    # No OIDC configuration needed - AWS credentials are automatically available
+    AWS_REGION: "${AWS_REGION:-ap-southeast-1}"
+  script:
+    - echo "Base template - override in job definition"
+    # AWS credentials are automatically available from the runner's IAM role
+    # Verify AWS credentials are available
+    - |
+      if command -v aws &> /dev/null; then
+        echo "AWS CLI available - verifying credentials..."
+        aws sts get-caller-identity || echo "WARNING: AWS credentials not available"
+      else
+        echo "AWS CLI not available in Terraform image - credentials should be available via IAM role"
+      fi
+

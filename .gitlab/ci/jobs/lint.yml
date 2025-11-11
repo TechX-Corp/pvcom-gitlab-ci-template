@@ -1,0 +1,53 @@
+# ============================================
+# Terraform Lint Jobs
+# ============================================
+# Runs tflint and terraform fmt to check code quality
+# ============================================
+
+.terraform_lint_job:
+  extends: .terraform_base
+  script:
+    - |
+      set -euo pipefail
+      
+      echo "=========================================="
+      echo "Running Terraform lint for ${TARGET}"
+      echo "=========================================="
+      
+      # Terraform fmt check
+      echo "Running terraform fmt -check..."
+      terraform fmt -check -recursive -diff || {
+        echo "ERROR: terraform fmt check failed"
+        echo "Run 'terraform fmt -recursive' to fix formatting issues"
+        exit 1
+      }
+      
+      # Terraform fmt (write mode - non-blocking)
+      echo "Running terraform fmt..."
+      terraform fmt -recursive || true
+      
+      # TFLint (if .tflint.hcl exists or use default rules)
+      if [ -f ".tflint.hcl" ] || [ -f "../.tflint.hcl" ] || [ -f "../../.tflint.hcl" ]; then
+        echo "Running tflint..."
+        tflint --init || true
+        tflint --format json --out tflint.json || true
+        tflint --format default || true
+      else
+        echo "No .tflint.hcl found - skipping tflint (or using default rules)"
+        tflint --init || true
+        tflint --format default || true
+      fi
+      
+      echo "=========================================="
+      echo "Lint completed successfully for ${TARGET}"
+      echo "=========================================="
+  artifacts:
+    when: always
+    paths:
+      - tflint.json
+    expire_in: 1 week
+    reports:
+      # TFLint JSON report (if available)
+      junit: tflint.json
+  allow_failure: false
+
