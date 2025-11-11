@@ -124,8 +124,7 @@ ${MATRIX_TARGETS}
     - when: never
 
 # Plan jobs with parallel matrix
-# CI mode: Generate new plan
-# CD mode: Skip (reuse plan from merge request artifacts)
+# Runs in both CI and CD modes
 terraform_plan:
   extends: .terraform_plan_job
   stage: plan
@@ -141,18 +140,6 @@ ${MATRIX_TARGETS}
   rules:
     - if: \$PIPELINE_MODE == "ci"
       when: on_success
-    - when: never
-
-# Show plan job for CD mode
-# Displays the plan from artifacts before approval
-show_plan:
-  extends: .terraform_show_plan_job
-  stage: plan
-  parallel:
-    matrix:
-      - TARGET:
-${MATRIX_TARGETS}
-  rules:
     - if: \$PIPELINE_MODE == "cd"
       when: on_success
     - when: never
@@ -165,7 +152,7 @@ approve_apply:
     - linux
     - self-hosted
   needs:
-    - job: show_plan
+    - job: terraform_plan
       artifacts: false
   before_script:
     - apk add --no-cache bash jq
@@ -203,12 +190,11 @@ cat >> child-pipeline.yml <<EOF
     - when: never
 
 # Apply jobs with parallel matrix
-# Uses plan artifacts from CI merge request pipeline
 terraform_apply:
   extends: .terraform_apply_job
   stage: apply
   needs:
-    - job: show_plan
+    - job: terraform_plan
       artifacts: true
     - job: approve_apply
   parallel:

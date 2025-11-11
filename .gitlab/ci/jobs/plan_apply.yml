@@ -143,19 +143,57 @@
       echo "Environment: ${ENVIRONMENT}"
       echo "=========================================="
       
+      # Download artifacts from the latest successful CI pipeline
+      echo "Downloading plan artifacts from CI pipeline..."
+      
+      # Find the latest successful pipeline on the current branch
+      LATEST_PIPELINE=$(curl --silent --header "PRIVATE-TOKEN: ${CI_JOB_TOKEN}" \
+        "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/pipelines?ref=${CI_COMMIT_REF_NAME}&status=success&order_by=id&sort=desc&per_page=1" | \
+        jq -r '.[0].id')
+      
+      if [ -z "${LATEST_PIPELINE}" ] || [ "${LATEST_PIPELINE}" = "null" ]; then
+        echo "ERROR: No successful CI pipeline found on branch ${CI_COMMIT_REF_NAME}"
+        echo "Please ensure the merge request CI pipeline completed successfully"
+        exit 1
+      fi
+      
+      echo "Found pipeline: ${LATEST_PIPELINE}"
+      echo "Downloading artifacts..."
+      
+      # Download and extract artifacts
+      curl --location --silent --header "PRIVATE-TOKEN: ${CI_JOB_TOKEN}" \
+        "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/pipelines/${LATEST_PIPELINE}/jobs" > jobs.json
+      
+      # Find the terraform_plan job
+      PLAN_JOB_ID=$(jq -r '.[] | select(.name | contains("terraform_plan")) | .id' jobs.json | head -1)
+      
+      if [ -z "${PLAN_JOB_ID}" ] || [ "${PLAN_JOB_ID}" = "null" ]; then
+        echo "ERROR: No terraform_plan job found in pipeline ${LATEST_PIPELINE}"
+        exit 1
+      fi
+      
+      echo "Downloading artifacts from job: ${PLAN_JOB_ID}"
+      curl --location --output artifacts.zip --header "PRIVATE-TOKEN: ${CI_JOB_TOKEN}" \
+        "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/jobs/${PLAN_JOB_ID}/artifacts"
+      
+      # Extract artifacts
+      unzip -o artifacts.zip || {
+        echo "ERROR: Failed to extract artifacts"
+        exit 1
+      }
+      
       # Check if plan artifacts exist
       ARTIFACT_PLAN_FILE="${CI_PROJECT_DIR}/artifacts/${TARGET}/tfplan"
       ARTIFACT_PLAN_TEXT="${CI_PROJECT_DIR}/artifacts/${TARGET}/plan.txt"
       
       if [ ! -f "${ARTIFACT_PLAN_FILE}" ]; then
-        echo "ERROR: Plan file not found in artifacts"
+        echo "ERROR: Plan file not found after extraction"
         echo "Expected: ${ARTIFACT_PLAN_FILE}"
-        echo "This CD pipeline requires plan artifacts from the merge request CI pipeline"
         ls -la "${CI_PROJECT_DIR}/artifacts/" || echo "No artifacts directory found"
         exit 1
       fi
       
-      echo "Found plan artifacts from merge request"
+      echo "Successfully downloaded plan artifacts"
       echo ""
       
       # Display plan text
