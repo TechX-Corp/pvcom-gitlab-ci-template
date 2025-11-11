@@ -6,22 +6,11 @@
 # ============================================
 
 .terraform_base:
-  image: hashicorp/terraform:${TERRAFORM_VERSION}
   tags:
-    - linux
-    - self-hosted
+    - default
+  interruptible: true
   before_script:
     - |
-      # Install additional tools
-      apk add --no-cache bash curl jq git python3 py3-pip unzip
-      
-      # Install tflint (optional)
-      curl -s https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh | bash || echo "tflint installation skipped"
-      
-      # Install Checkov (optional - Alpine compatible method)
-      pip3 install --upgrade pip && pip3 install --upgrade setuptools
-      pip3 install checkov || echo "checkov installation skipped"
-      
       # Setup working directory (only if TARGET is set)
       if [ -n "${TARGET:-}" ]; then
         cd "${TARGET}" || { echo "ERROR: Target directory ${TARGET} not found"; exit 1; }
@@ -38,19 +27,56 @@
     TF_IN_AUTOMATION: "true"
     TF_PLAN_FILE: "tfplan"
     TF_PLAN_TEXT: "plan.txt"
-    # AWS configuration
-    # Runner is running on AWS and will use its IAM role (instance profile)
-    # No OIDC configuration needed - AWS credentials are automatically available
-    AWS_REGION: "${AWS_REGION:-ap-southeast-1}"
-  script:
-    - echo "Base template - override in job definition"
-    # AWS credentials are automatically available from the runner's IAM role
-    # Verify AWS credentials are available
+
+# ============================================
+# Terraform Init Template
+# ============================================
+# Handles Terraform initialization with S3 backend configuration
+# State key format: tfstate/<account-name>/<target>/env/${ENVIRONMENT}/terraform.tfstate
+# ============================================
+
+.tf_init:
+  before_script:
     - |
-      if command -v aws &> /dev/null; then
-        echo "AWS CLI available - verifying credentials..."
-        aws sts get-caller-identity || echo "WARNING: AWS credentials not available"
-      else
-        echo "AWS CLI not available in Terraform image - credentials should be available via IAM role"
-      fi
+      set -euo pipefail
+      
+      echo "=========================================="
+      echo "Terraform Init for ${TARGET}"
+      echo "Environment: ${ENVIRONMENT}"
+      echo "=========================================="
+      
+      # Clean up any existing terraform state
+      rm -rf .terraform
+      
+      # Create backend configuration file
+      cat > terraform_backend.tf <<EOF
+      terraform {
+        backend "s3" {}
+      }
+      EOF
+      
+      # Build state key based on TARGET path
+      # Format: tfstate/<account-name>/<target>/env/<environment>/terraform.tfstate
+      # Example: tfstate/pvcombank/hli/infra/kms/env/development/terraform.tfstate
+      TF_STATE_KEY="tfstate/${TF_ACCOUNT_NAME}/${TARGET}/env/${ENVIRONMENT}/terraform.tfstate"
+      
+      echo "Backend configuration:"
+      echo "  Bucket: ${TF_BACKEND_S3}"
+      echo "  Region: $AWS_DEFAULT_REGION"
+      echo "  State key: ${TF_STATE_KEY}"
+      echo "  Role ARN: arn:aws:iam::${BACKEND_ACCOUNT_ID}:role/${BACKEND_IAM_ROLE_NAME}"
+      
+      # Initialize with backend configuration
+      terraform init -reconfigure \
+        -backend-config="bucket=${TF_BACKEND_S3}" \
+        -backend-config="key=${TF_STATE_KEY}" \
+        -backend-config="region=$AWS_DEFAULT_REGION" \
+        -backend-config="role_arn=arn:aws:iam::${BACKEND_ACCOUNT_ID}:role/${BACKEND_IAM_ROLE_NAME}"
+      
+      # Validate terraform configuration
+      echo "Running terraform validate..."
+      terraform validate
+      
+      echo "Terraform initialization completed successfully"
+      echo "=========================================="
 

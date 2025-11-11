@@ -13,12 +13,13 @@ include:
 # Pipeline variables
 variables:
   TERRAFORM_VERSION: "1.12.1"
-  AWS_REGION: "${AWS_REGION:-ap-southeast-1}"
+  AWS_REGION: "ap-southeast-1"  # Default region, can be overridden in GitLab CI/CD Variables
   TF_INPUT: "false"
   TF_IN_AUTOMATION: "true"
   TF_PLAN_FILE: "tfplan"
   TF_PLAN_TEXT: "plan.txt"
   
+  TF_ACCOUNT_NAME: "PVCom CICD POC"
   # Git configuration for private modules
   GIT_STRATEGY: "clone"
   GIT_DEPTH: "0"
@@ -34,14 +35,11 @@ cache:
 stages:
   - .pre      # Pre-stage for change detection
   - prepare   # Stage for child pipeline generation
-  - lint
-  - security
-  - plan
-  - approve
-  - apply
 
 # Workflow rules
 workflow:
+  auto_cancel:
+    on_new_commit: interruptible
   rules:
     # Run CI pipeline on merge requests
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -55,13 +53,3 @@ workflow:
       variables:
         PIPELINE_MODE: "cd"
         ENVIRONMENT: $CI_COMMIT_BRANCH
-    
-    # Run CD pipeline on push to main (defaults to development environment)
-    - if: $CI_COMMIT_BRANCH == "main"
-      variables:
-        PIPELINE_MODE: "cd"
-        ENVIRONMENT: "development"
-    
-    # Skip pipeline for other branches (optional - remove this rule to allow all branches)
-    # - when: never
-

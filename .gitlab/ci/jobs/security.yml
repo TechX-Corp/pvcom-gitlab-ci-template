@@ -6,62 +6,11 @@
 
 .terraform_security_job:
   extends: .terraform_base
+  image:
+    name: mirror.pvcb.vn/bridgecrew/checkov:latest
+    entrypoint: [""]
+  tags:
+    - default
   script:
     - |
-      set -euo pipefail
-      
-      echo "=========================================="
-      echo "Running security scan for ${TARGET}"
-      echo "=========================================="
-      
-      # Checkov security scanning
-      echo "Running Checkov..."
-      
-      # Run Checkov with SARIF output for GitLab Security Dashboard
-      checkov -d . \
-        --framework terraform \
-        --output sarif \
-        --output-file-path checkov.sarif \
-        --quiet \
-        --soft-fail \
-        || true
-      
-      # Also run with console output
-      checkov -d . \
-        --framework terraform \
-        --output cli \
-        --quiet \
-        || true
-      
-      # Check for high/critical severity issues
-      if [ -f "checkov.sarif" ]; then
-        echo "Checkov scan completed - SARIF report generated"
-        
-        # Count high/critical issues (basic check)
-        HIGH_CRITICAL_COUNT=$(jq -r '.runs[0].results[] | select(.level == "error" or .level == "warning") | .ruleId' checkov.sarif 2>/dev/null | wc -l || echo "0")
-        
-        if [ "${HIGH_CRITICAL_COUNT}" -gt 0 ]; then
-          echo "WARNING: Found ${HIGH_CRITICAL_COUNT} high/critical security issues"
-          echo "Review the Checkov report and fix issues before applying"
-        else
-          echo "No high/critical security issues found"
-        fi
-      else
-        echo "WARNING: Checkov SARIF report not generated"
-      fi
-      
-      echo "=========================================="
-      echo "Security scan completed for ${TARGET}"
-      echo "=========================================="
-  artifacts:
-    when: always
-    paths:
-      - checkov.sarif
-      - checkov.json
-    expire_in: 1 week
-    reports:
-      # SARIF report for GitLab Security Dashboard
-      sast: checkov.sarif
-  allow_failure: true
-  # Allow failure for security scan, but it will be visible in Security Dashboard
-
+      checkov -d . --skip-download

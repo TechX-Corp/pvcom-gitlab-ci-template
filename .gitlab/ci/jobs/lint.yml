@@ -6,6 +6,8 @@
 
 .terraform_lint_job:
   extends: .terraform_base
+  tags:
+    - default
   script:
     - |
       set -euo pipefail
@@ -21,33 +23,30 @@
         echo "Run 'terraform fmt -recursive' to fix formatting issues"
         exit 1
       }
+
+      # TFLint - fail only on errors (exit code 1), allow warnings (exit code 2)
+      echo "Running tflint..."
+      tflint --init || true
       
-      # Terraform fmt (write mode - non-blocking)
-      echo "Running terraform fmt..."
-      terraform fmt -recursive || true
+      # Temporarily disable pipefail to capture tflint exit code
+      set +e
+      tflint --format default
+      TFLINT_EXIT_CODE=$?
+      set -e
       
-      # TFLint (if .tflint.hcl exists or use default rules)
-      if [ -f ".tflint.hcl" ] || [ -f "../.tflint.hcl" ] || [ -f "../../.tflint.hcl" ]; then
-        echo "Running tflint..."
-        tflint --init || true
-        tflint --format json --out tflint.json || true
-        tflint --format default || true
+      if [ $TFLINT_EXIT_CODE -eq 1 ]; then
+        echo "ERROR: tflint found errors"
+        exit 1
+      elif [ $TFLINT_EXIT_CODE -eq 2 ]; then
+        echo "WARNING: tflint found warnings (non-blocking)"
+      elif [ $TFLINT_EXIT_CODE -eq 0 ]; then
+        echo "tflint passed with no issues"
       else
-        echo "No .tflint.hcl found - skipping tflint (or using default rules)"
-        tflint --init || true
-        tflint --format default || true
+        echo "ERROR: tflint exited with unexpected code: $TFLINT_EXIT_CODE"
+        exit 1
       fi
       
       echo "=========================================="
       echo "Lint completed successfully for ${TARGET}"
       echo "=========================================="
-  artifacts:
-    when: always
-    paths:
-      - tflint.json
-    expire_in: 1 week
-    reports:
-      # TFLint JSON report (if available)
-      junit: tflint.json
-  allow_failure: false
 

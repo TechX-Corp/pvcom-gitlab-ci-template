@@ -21,15 +21,11 @@ detect_changes:
 # This job generates a child pipeline YAML with parallel matrix jobs
 generate_child_pipeline:
   stage: prepare
-  image: alpine/git:latest
   tags:
-    - linux
-    - self-hosted
+    - default
   needs:
     - job: detect_changes
       artifacts: true
-  before_script:
-    - apk add --no-cache bash jq
   script:
     - |
       set -euo pipefail

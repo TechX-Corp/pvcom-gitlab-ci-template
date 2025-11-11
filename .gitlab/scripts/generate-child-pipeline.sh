@@ -59,8 +59,7 @@ include:
   - local: '.gitlab/ci/templates/terraform-base.yml'
 
 stages:
-  - lint
-  - security
+  - lint_and_security
   - plan
   - approve
   - apply
@@ -97,7 +96,7 @@ cat >> child-pipeline.yml <<EOF
 # Lint jobs with parallel matrix
 terraform_lint:
   extends: .terraform_lint_job
-  stage: lint
+  stage: lint_and_security
   parallel:
     matrix:
       - TARGET:
@@ -110,10 +109,7 @@ ${MATRIX_TARGETS}
 # Security scan jobs with parallel matrix
 terraform_security:
   extends: .terraform_security_job
-  stage: security
-  needs:
-    - job: terraform_lint
-      optional: true
+  stage: lint_and_security
   parallel:
     matrix:
       - TARGET:
@@ -123,11 +119,14 @@ ${MATRIX_TARGETS}
       when: on_success
     - when: never
 
-# Plan jobs with parallel matrix
-# Runs in both CI and CD modes
-terraform_plan:
+# Plan jobs with parallel matrix (CI only)
+# Non-production environments (development, staging)
+terraform_plan_nonprod:
   extends: .terraform_plan_job
   stage: plan
+  tags:
+    - aws
+    - \${RUNNER_TAG_NONPROD}
   needs:
     - job: terraform_lint
       optional: true
@@ -137,77 +136,85 @@ terraform_plan:
     matrix:
       - TARGET:
 ${MATRIX_TARGETS}
+  variables:
+    BACKEND_IAM_ROLE_NAME: \${BACKEND_ROLE_NONPROD}
+
   rules:
-    - if: \$PIPELINE_MODE == "ci"
-      when: on_success
-    - if: \$PIPELINE_MODE == "cd"
+    - if: \$PIPELINE_MODE == "ci" && \$ENVIRONMENT =~ /^(development|staging)$/
       when: on_success
     - when: never
 
-# Approval gate
-approve_apply:
-  stage: approve
-  image: alpine:latest
+# Plan jobs for production environment
+terraform_plan_prod:
+  extends: .terraform_plan_job
+  stage: plan
   tags:
-    - linux
-    - self-hosted
+    - aws
+    - \${RUNNER_TAG_PROD}
   needs:
-    - job: terraform_plan
-      artifacts: false
-  before_script:
-    - apk add --no-cache bash jq
-  script:
-    - |
-      echo "=========================================="
-      echo "Approval Gate for \${ENVIRONMENT} Environment"
-      echo "=========================================="
-      echo ""
-      echo "Please review the Terraform plans before approving apply."
-      echo ""
-      echo "Targets to be applied:"
-EOF
-
-# Add targets list to approval script
-while IFS= read -r target; do
-  if [ -n "${target}" ]; then
-    echo "      echo \"      - ${target}\"" >> child-pipeline.yml
-  fi
-done <<EOF
-${TARGETS}
-EOF
-
-cat >> child-pipeline.yml <<EOF
-      echo ""
-      echo "After approval, the apply stage will execute Terraform apply"
-      echo "for all planned targets in the \${ENVIRONMENT} environment."
-  rules:
-    - if: \$PIPELINE_MODE == "cd" && \$CI_COMMIT_BRANCH == "production"
-      when: manual
-      allow_failure: false
-    - if: \$PIPELINE_MODE == "cd" && \$CI_COMMIT_BRANCH =~ /^(development|staging)$/
-      when: manual
-      allow_failure: false
-    - when: never
-
-# Apply jobs with parallel matrix
-terraform_apply:
-  extends: .terraform_apply_job
-  stage: apply
-  needs:
-    - job: terraform_plan
-      artifacts: true
-    - job: approve_apply
+    - job: terraform_lint
+      optional: true
+    - job: terraform_security
+      optional: true
   parallel:
     matrix:
       - TARGET:
 ${MATRIX_TARGETS}
+  variables:
+    BACKEND_IAM_ROLE_NAME: \${BACKEND_ROLE_PROD}
+    # Fargate
+    FARGATE_TASK_DEFINITION: \${TASK_DEF_PROD}
+  rules:
+    - if: \$PIPELINE_MODE == "ci" && \$ENVIRONMENT == "production"
+      when: on_success
+    - when: never
+
+# Apply jobs with parallel matrix (CD only, auto-approve)
+# Non-production environments (development, staging)
+terraform_apply_nonprod:
+  extends: .terraform_apply_job
+  stage: apply
+  tags:
+    - aws
+    - \${RUNNER_TAG_NONPROD}
+  parallel:
+    matrix:
+      - TARGET:
+${MATRIX_TARGETS}
+  variables:
+    BACKEND_IAM_ROLE_NAME: \${BACKEND_ROLE_NONPROD}
   environment:
     name: \${ENVIRONMENT}
     action: start
   rules:
-    - if: \$PIPELINE_MODE == "cd"
-      when: manual
+    - if: \$PIPELINE_MODE == "cd" && \$ENVIRONMENT =~ /^(development|staging)$/
+      when: on_success
       allow_failure: false
+    - when: never
+
+# Apply jobs for production environment
+terraform_apply_prod:
+  extends: .terraform_apply_job
+  stage: apply
+  tags:
+    - aws
+    - \${RUNNER_TAG_PROD}
+  parallel:
+    matrix:
+      - TARGET:
+${MATRIX_TARGETS}
+  variables:
+    BACKEND_IAM_ROLE_NAME: \${BACKEND_ROLE_PROD}
+    # Fargate
+    FARGATE_TASK_DEFINITION: \${TASK_DEF_PROD}
+  environment:
+    name: \${ENVIRONMENT}
+    action: start
+  rules:
+    - if: \$PIPELINE_MODE == "cd" && \$ENVIRONMENT == "production"
+      when: on_success
+      allow_failure: false
+    - when: never
 EOF
 
 echo "Child pipeline generated successfully with ${TARGET_COUNT} targets"

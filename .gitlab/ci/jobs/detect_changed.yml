@@ -8,11 +8,8 @@
 .detect_changed_roots:
   image: alpine/git:latest
   tags:
-    - linux
-    - self-hosted
+    - default
   stage: .pre
-  before_script:
-    - apk add --no-cache bash jq
   script:
     - |
       set -euo pipefail
