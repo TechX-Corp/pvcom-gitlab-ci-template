@@ -11,6 +11,7 @@
   interruptible: true
   before_script:
     - |
+      #!/bin/bash
       # Setup working directory (only if TARGET is set)
       if [ -n "${TARGET:-}" ]; then
         cd "$TARGET" || { echo "ERROR: Target directory $TARGET not found"; exit 1; }
@@ -40,6 +41,7 @@
   before_script:
     - !reference [".terraform_base", "before_script"]
     - |
+      #!/bin/bash
       set -euo pipefail
       
       echo "=========================================="

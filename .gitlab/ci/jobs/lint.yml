@@ -5,11 +5,13 @@
 # ============================================
 
 .terraform_lint_job:
+  image: ghcr.io/terraform-linters/tflint:v0.59.1
   extends: .terraform_base
   tags:
     - default
   script:
     - |
+      #!/bin/bash
       set -euo pipefail
       
       echo "=========================================="

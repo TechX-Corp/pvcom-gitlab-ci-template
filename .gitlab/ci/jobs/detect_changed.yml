@@ -6,12 +6,13 @@
 # ============================================
 
 .detect_changed_roots:
-  image: alpine/git:latest
+  image: lebaotoan/alpine-bash-git-jq:latest-multiplatform
   tags:
     - default
   stage: .pre
   script:
     - |
+      #!/bin/bash
       set -euo pipefail
       
       echo "=========================================="

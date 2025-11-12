@@ -7,10 +7,6 @@
 
 include:
   - local: '.gitlab/ci/jobs/detect_changed.yml'
-  - local: '.gitlab/ci/jobs/lint.yml'
-  - local: '.gitlab/ci/jobs/security.yml'
-  - local: '.gitlab/ci/jobs/plan_apply.yml'
-  - local: '.gitlab/ci/templates/terraform-base.yml'
 
 # Detect changed Terraform roots
 detect_changes:
@@ -20,6 +16,7 @@ detect_changes:
 # Generate child pipeline with matrix jobs using GitLab parallel matrix
 # This job generates a child pipeline YAML with parallel matrix jobs
 generate_child_pipeline:
+  image: lebaotoan/alpine-bash-git-jq:latest-multiplatform
   stage: prepare
   tags:
     - default
@@ -28,6 +25,7 @@ generate_child_pipeline:
       artifacts: true
   script:
     - |
+      #!/bin/bash
       set -euo pipefail
       
       if [ ! -f "changed-targets.json" ]; then
