@@ -146,4 +146,3 @@
         echo "ERROR: terraform apply failed"
         exit 1
       }
-      fi

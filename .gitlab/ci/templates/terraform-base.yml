@@ -36,7 +36,9 @@
 # ============================================
 
 .tf_init:
+  extends: .terraform_base
   before_script:
+    - !reference [".terraform_base", "before_script"]
     - |
       set -euo pipefail
       
