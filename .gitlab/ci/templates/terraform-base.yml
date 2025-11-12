@@ -59,7 +59,7 @@
       
       # Build state key based on TARGET path
       # Format: tfstate/<account-name>/<target>/env/<environment>/terraform.tfstate
-      # Example: tfstate/pvcombank/hli/infra/kms/env/development/terraform.tfstate
+      # Example: tfstate/pvcombank/hli/infra/kms/env/dev/terraform.tfstate
       TF_STATE_KEY="tfstate/$TF_ACCOUNT_NAME/$TARGET/env/$ENVIRONMENT/terraform.tfstate"
       
       echo "Backend configuration:"

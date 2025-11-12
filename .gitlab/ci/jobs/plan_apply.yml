@@ -31,7 +31,7 @@
       # Check both root-level env/ and division-level env/ directories
       VAR_FILES=""
       
-      # Root-level env (e.g., /env/development/terraform.tfvars)
+      # Root-level env (e.g., /env/dev/terraform.tfvars)
       # Calculate path to root from current TARGET directory
       ROOT_ENV_PATH=""
       if [[ "$TARGET" =~ ^hli/ ]] || [[ "$TARGET" =~ ^services/ ]]; then
@@ -44,7 +44,7 @@
         VAR_FILES="$VAR_FILES -var-file=$ROOT_ENV_PATH"
       fi
 
-      # Division-level env (e.g., hli/infra/env/development/terraform.tfvars)
+      # Division-level env (e.g., hli/infra/env/dev/terraform.tfvars)
       if [ -f "../env/$ENVIRONMENT/terraform.tfvars" ]; then
         echo "Found env/$ENVIRONMENT/terraform.tfvars (division-level)"
         VAR_FILES="$VAR_FILES -var-file=../env/$ENVIRONMENT/terraform.tfvars"
@@ -112,7 +112,7 @@
       # Check both root-level env/ and division-level env/ directories
       VAR_FILES=""
       
-      # Root-level env (e.g., /env/development/terraform.tfvars)
+      # Root-level env (e.g., /env/dev/terraform.tfvars)
       # Calculate path to root from current TARGET directory
       ROOT_ENV_PATH=""
       if [[ "$TARGET" =~ ^hli/ ]] || [[ "$TARGET" =~ ^services/ ]]; then
@@ -125,7 +125,7 @@
         VAR_FILES="$VAR_FILES -var-file=$ROOT_ENV_PATH"
       fi
 
-      # Division-level env (e.g., hli/infra/env/development/terraform.tfvars)
+      # Division-level env (e.g., hli/infra/env/dev/terraform.tfvars)
       if [ -f "../env/$ENVIRONMENT/terraform.tfvars" ]; then
         echo "Found env/$ENVIRONMENT/terraform.tfvars (division-level)"
         VAR_FILES="$VAR_FILES -var-file=../env/$ENVIRONMENT/terraform.tfvars"

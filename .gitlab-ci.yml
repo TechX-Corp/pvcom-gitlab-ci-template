@@ -4,7 +4,7 @@
 # This pipeline follows the design document and reference pipeline patterns
 # - CI runs on Pull Requests (plan only)
 # - CD runs on merge to branch (apply)
-# - Branch-based environments: dev, staging, production
+# - Branch-based environments: dev, stg, prod
 # ============================================
 
 include:
@@ -45,11 +45,11 @@ workflow:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       variables:
         PIPELINE_MODE: "ci"
-        # Use target branch name as environment (development, staging, production)
+        # Use target branch name as environment (dev, stg, prod)
         ENVIRONMENT: $CI_MERGE_REQUEST_TARGET_BRANCH_NAME
     
-    # Run CD pipeline on push to main branches (development, staging, production)
-    - if: $CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH =~ /^(development|staging|production)$/
+    # Run CD pipeline on push to main branches (dev, stg, prod)
+    - if: $CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH =~ /^(dev|stg|prod)$/
       variables:
         PIPELINE_MODE: "cd"
         ENVIRONMENT: $CI_COMMIT_BRANCH

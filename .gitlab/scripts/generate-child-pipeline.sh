@@ -120,7 +120,7 @@ $MATRIX_TARGETS
     - when: never
 
 # Plan jobs with parallel matrix (CI only)
-# Non-production environments (development, staging)
+# Non-prod environments (dev, stg)
 terraform_plan_nonprod:
   extends: .terraform_plan_job
   stage: plan
@@ -140,11 +140,11 @@ $MATRIX_TARGETS
     BACKEND_IAM_ROLE_NAME: \$BACKEND_ROLE_NONPROD
 
   rules:
-    - if: \$PIPELINE_MODE == "ci" && \$ENVIRONMENT =~ /^(development|staging)$/
+    - if: \$PIPELINE_MODE == "ci" && \$ENVIRONMENT =~ /^(dev|stg)$/
       when: on_success
     - when: never
 
-# Plan jobs for production environment
+# Plan jobs for prod environment
 terraform_plan_prod:
   extends: .terraform_plan_job
   stage: plan
@@ -165,12 +165,12 @@ $MATRIX_TARGETS
     # Fargate
     FARGATE_TASK_DEFINITION: \$TASK_DEF_PROD
   rules:
-    - if: \$PIPELINE_MODE == "ci" && \$ENVIRONMENT == "production"
+    - if: \$PIPELINE_MODE == "ci" && \$ENVIRONMENT == "prod"
       when: on_success
     - when: never
 
 # Apply jobs with parallel matrix (CD only, auto-approve)
-# Non-production environments (development, staging)
+# Non-prod environments (dev, stg)
 terraform_apply_nonprod:
   extends: .terraform_apply_job
   stage: apply
@@ -187,12 +187,12 @@ $MATRIX_TARGETS
     name: \$ENVIRONMENT
     action: start
   rules:
-    - if: \$PIPELINE_MODE == "cd" && \$ENVIRONMENT =~ /^(development|staging)$/
+    - if: \$PIPELINE_MODE == "cd" && \$ENVIRONMENT =~ /^(dev|stg)$/
       when: on_success
       allow_failure: false
     - when: never
 
-# Apply jobs for production environment
+# Apply jobs for prod environment
 terraform_apply_prod:
   extends: .terraform_apply_job
   stage: apply
@@ -211,7 +211,7 @@ $MATRIX_TARGETS
     name: \$ENVIRONMENT
     action: start
   rules:
-    - if: \$PIPELINE_MODE == "cd" && \$ENVIRONMENT == "production"
+    - if: \$PIPELINE_MODE == "cd" && \$ENVIRONMENT == "prod"
       when: on_success
       allow_failure: false
     - when: never
