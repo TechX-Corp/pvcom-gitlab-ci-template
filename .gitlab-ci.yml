@@ -19,7 +19,7 @@ variables:
   TF_PLAN_FILE: "tfplan"
   TF_PLAN_TEXT: "plan.txt"
   
-  TF_ACCOUNT_NAME: "PVCom CICD POC"
+  TF_ACCOUNT_NAME: $CI_PROJECT_NAME
   # Git configuration for private modules
   GIT_STRATEGY: "clone"
   GIT_DEPTH: "0"
