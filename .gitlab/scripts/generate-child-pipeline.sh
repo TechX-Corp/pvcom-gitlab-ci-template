@@ -12,8 +12,8 @@ CHANGED_TARGETS_FILE="${1:-changed-targets.json}"
 PIPELINE_MODE="${2:-ci}"
 ENVIRONMENT="${3:-dev}"
 
-if [ ! -f "${CHANGED_TARGETS_FILE}" ]; then
-  echo "ERROR: Changed targets file not found: ${CHANGED_TARGETS_FILE}"
+if [ ! -f "$CHANGED_TARGETS_FILE" ]; then
+  echo "ERROR: Changed targets file not found: $CHANGED_TARGETS_FILE"
   exit 1
 fi
 
@@ -24,16 +24,16 @@ if ! command -v jq &> /dev/null; then
 fi
 
 # Read targets from JSON file
-TARGETS=$(jq -r '.changed_targets[]' "${CHANGED_TARGETS_FILE}" 2>/dev/null || echo "")
+TARGETS=$(jq -r '.changed_targets[]' "$CHANGED_TARGETS_FILE" 2>/dev/null || echo "")
 
-if [ -z "${TARGETS}" ] || [ "${TARGETS}" = "null" ]; then
-  echo "No targets found in ${CHANGED_TARGETS_FILE}"
+if [ -z "$TARGETS" ] || [ "$TARGETS" = "null" ]; then
+  echo "No targets found in $CHANGED_TARGETS_FILE"
   # Generate a valid empty pipeline YAML
   cat > child-pipeline.yml <<EOF
 stages: []
 variables:
-  PIPELINE_MODE: "${PIPELINE_MODE}"
-  ENVIRONMENT: "${ENVIRONMENT}"
+  PIPELINE_MODE: "$PIPELINE_MODE"
+  ENVIRONMENT: "$ENVIRONMENT"
 
 workflow:
   rules:
@@ -47,8 +47,8 @@ EOF
 fi
 
 # Count targets
-TARGET_COUNT=$(echo "${TARGETS}" | wc -l)
-echo "Generating child pipeline for ${TARGET_COUNT} targets"
+TARGET_COUNT=$(echo "$TARGETS" | wc -l)
+echo "Generating child pipeline for $TARGET_COUNT targets"
 
 # Start building the child pipeline YAML
 cat > child-pipeline.yml <<EOF
@@ -65,8 +65,8 @@ stages:
   - apply
 
 variables:
-  PIPELINE_MODE: "${PIPELINE_MODE}"
-  ENVIRONMENT: "${ENVIRONMENT}"
+  PIPELINE_MODE: "$PIPELINE_MODE"
+  ENVIRONMENT: "$ENVIRONMENT"
 
 workflow:
   rules:
@@ -79,16 +79,16 @@ EOF
 # Build matrix array for YAML
 MATRIX_TARGETS=""
 while IFS= read -r target; do
-  if [ -n "${target}" ]; then
-    if [ -z "${MATRIX_TARGETS}" ]; then
-      MATRIX_TARGETS="        - ${target}"
+  if [ -n "$target" ]; then
+    if [ -z "$MATRIX_TARGETS" ]; then
+      MATRIX_TARGETS="        - $target"
     else
-      MATRIX_TARGETS="${MATRIX_TARGETS}
-        - ${target}"
+      MATRIX_TARGETS="$MATRIX_TARGETS
+        - $target"
     fi
   fi
 done <<EOF
-${TARGETS}
+$TARGETS
 EOF
 
 # Generate lint jobs
@@ -100,7 +100,7 @@ terraform_lint:
   parallel:
     matrix:
       - TARGET:
-${MATRIX_TARGETS}
+$MATRIX_TARGETS
   rules:
     - if: \$PIPELINE_MODE == "ci"
       when: on_success
@@ -113,7 +113,7 @@ terraform_security:
   parallel:
     matrix:
       - TARGET:
-${MATRIX_TARGETS}
+$MATRIX_TARGETS
   rules:
     - if: \$PIPELINE_MODE == "ci"
       when: on_success
@@ -126,7 +126,7 @@ terraform_plan_nonprod:
   stage: plan
   tags:
     - aws
-    - \${RUNNER_TAG_NONPROD}
+    - \$RUNNER_TAG_NONPROD
   needs:
     - job: terraform_lint
       optional: true
@@ -135,9 +135,9 @@ terraform_plan_nonprod:
   parallel:
     matrix:
       - TARGET:
-${MATRIX_TARGETS}
+$MATRIX_TARGETS
   variables:
-    BACKEND_IAM_ROLE_NAME: \${BACKEND_ROLE_NONPROD}
+    BACKEND_IAM_ROLE_NAME: \$BACKEND_ROLE_NONPROD
 
   rules:
     - if: \$PIPELINE_MODE == "ci" && \$ENVIRONMENT =~ /^(development|staging)$/
@@ -150,7 +150,7 @@ terraform_plan_prod:
   stage: plan
   tags:
     - aws
-    - \${RUNNER_TAG_PROD}
+    - \$RUNNER_TAG_PROD
   needs:
     - job: terraform_lint
       optional: true
@@ -159,11 +159,11 @@ terraform_plan_prod:
   parallel:
     matrix:
       - TARGET:
-${MATRIX_TARGETS}
+$MATRIX_TARGETS
   variables:
-    BACKEND_IAM_ROLE_NAME: \${BACKEND_ROLE_PROD}
+    BACKEND_IAM_ROLE_NAME: \$BACKEND_ROLE_PROD
     # Fargate
-    FARGATE_TASK_DEFINITION: \${TASK_DEF_PROD}
+    FARGATE_TASK_DEFINITION: \$TASK_DEF_PROD
   rules:
     - if: \$PIPELINE_MODE == "ci" && \$ENVIRONMENT == "production"
       when: on_success
@@ -176,15 +176,15 @@ terraform_apply_nonprod:
   stage: apply
   tags:
     - aws
-    - \${RUNNER_TAG_NONPROD}
+    - \$RUNNER_TAG_NONPROD
   parallel:
     matrix:
       - TARGET:
-${MATRIX_TARGETS}
+$MATRIX_TARGETS
   variables:
-    BACKEND_IAM_ROLE_NAME: \${BACKEND_ROLE_NONPROD}
+    BACKEND_IAM_ROLE_NAME: \$BACKEND_ROLE_NONPROD
   environment:
-    name: \${ENVIRONMENT}
+    name: \$ENVIRONMENT
     action: start
   rules:
     - if: \$PIPELINE_MODE == "cd" && \$ENVIRONMENT =~ /^(development|staging)$/
@@ -198,17 +198,17 @@ terraform_apply_prod:
   stage: apply
   tags:
     - aws
-    - \${RUNNER_TAG_PROD}
+    - \$RUNNER_TAG_PROD
   parallel:
     matrix:
       - TARGET:
-${MATRIX_TARGETS}
+$MATRIX_TARGETS
   variables:
-    BACKEND_IAM_ROLE_NAME: \${BACKEND_ROLE_PROD}
+    BACKEND_IAM_ROLE_NAME: \$BACKEND_ROLE_PROD
     # Fargate
-    FARGATE_TASK_DEFINITION: \${TASK_DEF_PROD}
+    FARGATE_TASK_DEFINITION: \$TASK_DEF_PROD
   environment:
-    name: \${ENVIRONMENT}
+    name: \$ENVIRONMENT
     action: start
   rules:
     - if: \$PIPELINE_MODE == "cd" && \$ENVIRONMENT == "production"
@@ -217,4 +217,4 @@ ${MATRIX_TARGETS}
     - when: never
 EOF
 
-echo "Child pipeline generated successfully with ${TARGET_COUNT} targets"
+echo "Child pipeline generated successfully with $TARGET_COUNT targets"

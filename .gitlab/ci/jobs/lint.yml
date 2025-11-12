@@ -13,7 +13,7 @@
       set -euo pipefail
       
       echo "=========================================="
-      echo "Running Terraform lint for ${TARGET}"
+      echo "Running Terraform lint for $TARGET"
       echo "=========================================="
       
       # Terraform fmt check
@@ -47,6 +47,6 @@
       fi
       
       echo "=========================================="
-      echo "Lint completed successfully for ${TARGET}"
+      echo "Lint completed successfully for $TARGET"
       echo "=========================================="
 

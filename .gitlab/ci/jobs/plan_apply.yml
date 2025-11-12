@@ -16,15 +16,15 @@
       set -euo pipefail
       
       echo "=========================================="
-      echo "Running Terraform plan for ${TARGET}"
-      echo "Environment: ${ENVIRONMENT}"
+      echo "Running Terraform plan for $TARGET"
+      echo "Environment: $ENVIRONMENT"
       echo "=========================================="
       
       # Configure Git for private Terraform modules
       if [ -n "${TF_MODULES_TOKEN:-}" ]; then
         echo "Configuring Git for private modules..."
-        git config --global url."https://oauth2:${TF_MODULES_TOKEN}@gitlab.com".insteadOf "https://gitlab.com" || true
-        git config --global url."https://oauth2:${TF_MODULES_TOKEN}@github.com".insteadOf "https://github.com" || true
+        git config --global url."https://oauth2:$TF_MODULES_TOKEN@gitlab.com".insteadOf "https://gitlab.com" || true
+        git config --global url."https://oauth2:$TF_MODULES_TOKEN@github.com".insteadOf "https://github.com" || true
       fi
       
       # Load environment-specific variables if they exist
@@ -34,30 +34,30 @@
       # Root-level env (e.g., /env/development/terraform.tfvars)
       # Calculate path to root from current TARGET directory
       ROOT_ENV_PATH=""
-      if [[ "${TARGET}" =~ ^hli/ ]] || [[ "${TARGET}" =~ ^services/ ]]; then
+      if [[ "$TARGET" =~ ^hli/ ]] || [[ "$TARGET" =~ ^services/ ]]; then
         # For hli/* or services/*, root is 3 levels up
-        ROOT_ENV_PATH="../../../env/${ENVIRONMENT}/terraform.tfvars"
+        ROOT_ENV_PATH="../../../env/$ENVIRONMENT/terraform.tfvars"
       fi
       
-      if [ -n "${ROOT_ENV_PATH}" ] && [ -f "${ROOT_ENV_PATH}" ]; then
-        echo "Found ${ROOT_ENV_PATH} (root-level)"
-        VAR_FILES="${VAR_FILES} -var-file=${ROOT_ENV_PATH}"
+      if [ -n "$ROOT_ENV_PATH" ] && [ -f "$ROOT_ENV_PATH" ]; then
+        echo "Found $ROOT_ENV_PATH (root-level)"
+        VAR_FILES="$VAR_FILES -var-file=$ROOT_ENV_PATH"
       fi
 
       # Division-level env (e.g., hli/infra/env/development/terraform.tfvars)
-      if [ -f "../env/${ENVIRONMENT}/terraform.tfvars" ]; then
-        echo "Found env/${ENVIRONMENT}/terraform.tfvars (division-level)"
-        VAR_FILES="${VAR_FILES} -var-file=../env/${ENVIRONMENT}/terraform.tfvars"
+      if [ -f "../env/$ENVIRONMENT/terraform.tfvars" ]; then
+        echo "Found env/$ENVIRONMENT/terraform.tfvars (division-level)"
+        VAR_FILES="$VAR_FILES -var-file=../env/$ENVIRONMENT/terraform.tfvars"
       fi
 
       # Current directory terraform.tfvars
       if [ -f "terraform.tfvars" ]; then
         echo "Found terraform.tfvars in current directory"
-        VAR_FILES="${VAR_FILES} -var-file=terraform.tfvars"
+        VAR_FILES="$VAR_FILES -var-file=terraform.tfvars"
       fi
 
       # Validate VAR_FILES
-      echo "VAR_FILES: ${VAR_FILES}"
+      echo "VAR_FILES: $VAR_FILES"
       # Set environment variable for Terraform
       
       # Terraform plan
@@ -65,8 +65,8 @@
       terraform plan \
         -input=false \
         -no-color \
-        -out="${TF_PLAN_FILE}" \
-        ${VAR_FILES} \
+        -out="$TF_PLAN_FILE" \
+        $VAR_FILES \
         2>&1 | tee plan.log || {
           echo "ERROR: terraform plan failed"
           exit 1
@@ -74,13 +74,13 @@
       
       # Copy artifacts to a predictable location for GitLab
       # GitLab artifact paths are relative to the job working directory root
-      mkdir -p "${CI_PROJECT_DIR}/artifacts/${TARGET}"
-      cp "${TF_PLAN_FILE}" "${CI_PROJECT_DIR}/artifacts/${TARGET}/" || echo "WARNING: Could not copy plan file"
-      cp "${TF_PLAN_TEXT}" "${CI_PROJECT_DIR}/artifacts/${TARGET}/" || echo "WARNING: Could not copy plan text"
-      cp plan.log "${CI_PROJECT_DIR}/artifacts/${TARGET}/" || echo "WARNING: Could not copy plan log"
+      mkdir -p "$CI_PROJECT_DIR/artifacts/$TARGET"
+      cp "$TF_PLAN_FILE" "$CI_PROJECT_DIR/artifacts/$TARGET/" || echo "WARNING: Could not copy plan file"
+      cp "$TF_PLAN_TEXT" "$CI_PROJECT_DIR/artifacts/$TARGET/" || echo "WARNING: Could not copy plan text"
+      cp plan.log "$CI_PROJECT_DIR/artifacts/$TARGET/" || echo "WARNING: Could not copy plan log"
       
-      echo "Artifacts copied to: ${CI_PROJECT_DIR}/artifacts/${TARGET}/"
-      ls -la "${CI_PROJECT_DIR}/artifacts/${TARGET}/" || true
+      echo "Artifacts copied to: $CI_PROJECT_DIR/artifacts/$TARGET/"
+      ls -la "$CI_PROJECT_DIR/artifacts/$TARGET/" || true
   artifacts:
     paths:
       - artifacts/
@@ -98,15 +98,15 @@
       set -euo pipefail
       
       echo "=========================================="
-      echo "Running Terraform apply for ${TARGET}"
-      echo "Environment: ${ENVIRONMENT}"
+      echo "Running Terraform apply for $TARGET"
+      echo "Environment: $ENVIRONMENT"
       echo "=========================================="
       
       # Configure Git for private modules
       if [ -n "${TF_MODULES_TOKEN:-}" ]; then
         echo "Configuring Git for private modules..."
-        git config --global url."https://oauth2:${TF_MODULES_TOKEN}@gitlab.com".insteadOf "https://gitlab.com" || true
-        git config --global url."https://oauth2:${TF_MODULES_TOKEN}@github.com".insteadOf "https://github.com" || true
+        git config --global url."https://oauth2:$TF_MODULES_TOKEN@gitlab.com".insteadOf "https://gitlab.com" || true
+        git config --global url."https://oauth2:$TF_MODULES_TOKEN@github.com".insteadOf "https://github.com" || true
       fi
 
       # Check both root-level env/ and division-level env/ directories
@@ -115,34 +115,34 @@
       # Root-level env (e.g., /env/development/terraform.tfvars)
       # Calculate path to root from current TARGET directory
       ROOT_ENV_PATH=""
-      if [[ "${TARGET}" =~ ^hli/ ]] || [[ "${TARGET}" =~ ^services/ ]]; then
+      if [[ "$TARGET" =~ ^hli/ ]] || [[ "$TARGET" =~ ^services/ ]]; then
         # For hli/* or services/*, root is 3 levels up
-        ROOT_ENV_PATH="../../../env/${ENVIRONMENT}/terraform.tfvars"
+        ROOT_ENV_PATH="../../../env/$ENVIRONMENT/terraform.tfvars"
       fi
       
-      if [ -n "${ROOT_ENV_PATH}" ] && [ -f "${ROOT_ENV_PATH}" ]; then
-        echo "Found ${ROOT_ENV_PATH} (root-level)"
-        VAR_FILES="${VAR_FILES} -var-file=${ROOT_ENV_PATH}"
+      if [ -n "$ROOT_ENV_PATH" ] && [ -f "$ROOT_ENV_PATH" ]; then
+        echo "Found $ROOT_ENV_PATH (root-level)"
+        VAR_FILES="$VAR_FILES -var-file=$ROOT_ENV_PATH"
       fi
 
       # Division-level env (e.g., hli/infra/env/development/terraform.tfvars)
-      if [ -f "../env/${ENVIRONMENT}/terraform.tfvars" ]; then
-        echo "Found env/${ENVIRONMENT}/terraform.tfvars (division-level)"
-        VAR_FILES="${VAR_FILES} -var-file=../env/${ENVIRONMENT}/terraform.tfvars"
+      if [ -f "../env/$ENVIRONMENT/terraform.tfvars" ]; then
+        echo "Found env/$ENVIRONMENT/terraform.tfvars (division-level)"
+        VAR_FILES="$VAR_FILES -var-file=../env/$ENVIRONMENT/terraform.tfvars"
       fi
 
       # Current directory terraform.tfvars
       if [ -f "terraform.tfvars" ]; then
         echo "Found terraform.tfvars in current directory"
-        VAR_FILES="${VAR_FILES} -var-file=terraform.tfvars"
+        VAR_FILES="$VAR_FILES -var-file=terraform.tfvars"
       fi
       # Build terraform apply command with auto-approve
-      TF_APPLY_CMD="terraform apply -no-color -auto-approve ${VAR_FILES}"
+      TF_APPLY_CMD="terraform apply -no-color -auto-approve $VAR_FILES"
       
       # Terraform apply with auto-approve
       echo "Running terraform apply with auto-approve..."
-      echo "Command: ${TF_APPLY_CMD}"
-      ${TF_APPLY_CMD} 2>&1 | tee apply.log || {
+      echo "Command: $TF_APPLY_CMD"
+      $TF_APPLY_CMD 2>&1 | tee apply.log || {
         echo "ERROR: terraform apply failed"
         exit 1
       }

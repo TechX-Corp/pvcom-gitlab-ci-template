@@ -26,7 +26,7 @@ variables:
 
 # Cache Terraform providers and modules
 cache:
-  key: "${CI_COMMIT_REF_SLUG}-terraform"
+  key: "$CI_COMMIT_REF_SLUG-terraform"
   paths:
     - .terraform/**/*
   policy: pull-push

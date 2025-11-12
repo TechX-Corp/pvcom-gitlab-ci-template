@@ -26,74 +26,74 @@
       # Determine comparison base
       if [ "$CI_PIPELINE_SOURCE" = "merge_request_event" ]; then
         # PR mode: compare with target branch
-        BASE_REF="${CI_MERGE_REQUEST_TARGET_BRANCH_NAME}"
-        HEAD_REF="${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME}"
-        echo "PR mode: comparing ${HEAD_REF} with ${BASE_REF}"
+        BASE_REF="$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
+        HEAD_REF="$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME"
+        echo "PR mode: comparing $HEAD_REF with $BASE_REF"
         
         # Fetch target branch for comparison
-        git fetch --no-tags origin "${BASE_REF}:${BASE_REF}" || true
+        git fetch --no-tags origin "$BASE_REF:$BASE_REF" || true
         
         # Get changed files
-        CHANGED_FILES=$(git diff --name-only "origin/${BASE_REF}...HEAD" || git diff --name-only "${BASE_REF}...HEAD" || true)
+        CHANGED_FILES=$(git diff --name-only "origin/$BASE_REF...HEAD" || git diff --name-only "$BASE_REF...HEAD" || true)
       else
         # Push mode: compare with previous commit
         echo "Push mode: comparing current commit with previous commit"
-        git fetch --no-tags origin "${CI_COMMIT_BRANCH}:${CI_COMMIT_BRANCH}" || true
+        git fetch --no-tags origin "$CI_COMMIT_BRANCH:$CI_COMMIT_BRANCH" || true
         
-        CURRENT_COMMIT="${CI_COMMIT_SHA}"
-        echo "Current commit: ${CURRENT_COMMIT}"
+        CURRENT_COMMIT="$CI_COMMIT_SHA"
+        echo "Current commit: $CURRENT_COMMIT"
         
         # Check if this is a merge commit
-        PARENT_COUNT=$(git show --format='%P' "${CURRENT_COMMIT}" | tr ' ' '\n' | grep -v '^$' | wc -l)
+        PARENT_COUNT=$(git show --format='%P' "$CURRENT_COMMIT" | tr ' ' '\n' | grep -v '^$' | wc -l)
         
-        if [ "${PARENT_COUNT}" -gt 1 ]; then
+        if [ "$PARENT_COUNT" -gt 1 ]; then
           # Merge commit - compare with first parent
           echo "Detected merge commit - comparing with first parent"
-          PARENT_COMMIT=$(git show --format='%P' "${CURRENT_COMMIT}" | cut -d' ' -f1)
-          CHANGED_FILES=$(git diff --name-only "${PARENT_COMMIT}" "${CURRENT_COMMIT}" || true)
+          PARENT_COMMIT=$(git show --format='%P' "$CURRENT_COMMIT" | cut -d' ' -f1)
+          CHANGED_FILES=$(git diff --name-only "$PARENT_COMMIT" "$CURRENT_COMMIT" || true)
         else
           # Single parent commit
           PREV_COMMIT=$(git rev-parse HEAD~1 2>/dev/null || git rev-parse HEAD)
-          CHANGED_FILES=$(git diff --name-only "${PREV_COMMIT}" HEAD || true)
+          CHANGED_FILES=$(git diff --name-only "$PREV_COMMIT" HEAD || true)
         fi
       fi
       
       echo "Changed files:"
-      echo "${CHANGED_FILES}" | head -20 || echo "No changed files"
+      echo "$CHANGED_FILES" | head -20 || echo "No changed files"
       
       # Filter files under hli/ or services/ directories only
       # Look for .tf, .tfvars, .json files
       # Exclude .terraform directories and env directories
-      RELEVANT_FILES=$(echo "${CHANGED_FILES}" | grep -E '\.(tf|tfvars|json)$' | grep -E '^(hli/|services/)' | grep -v '\.terraform/' || true)
+      RELEVANT_FILES=$(echo "$CHANGED_FILES" | grep -E '\.(tf|tfvars|json)$' | grep -E '^(hli/|services/)' | grep -v '\.terraform/' || true)
       
       echo "Relevant files changed (.tf, .tfvars, .json in hli/ or services/):"
-      echo "${RELEVANT_FILES}" | head -20 || echo "No relevant files changed"
+      echo "$RELEVANT_FILES" | head -20 || echo "No relevant files changed"
       
       # Extract unique directory paths from changed files
       # Use the directory of each changed file directly as the target
       TARGETS=""
       
-      if [ -n "${RELEVANT_FILES}" ]; then
+      if [ -n "$RELEVANT_FILES" ]; then
         echo "Extracting target directories from changed files..."
         
         IFS=$'\n'
-        for changed_file in ${RELEVANT_FILES}; do
-          if [ -n "${changed_file}" ]; then
+        for changed_file in $RELEVANT_FILES; do
+          if [ -n "$changed_file" ]; then
             # Get the directory of the changed file
-            target_dir=$(dirname "${changed_file}")
+            target_dir=$(dirname "$changed_file")
             
             # Skip env/ directories (they only contain tfvars, not Terraform root modules)
-            if [[ "${target_dir}" =~ /env/ ]] || [[ "${target_dir}" =~ ^env/ ]]; then
-              echo "Skipping env directory: ${target_dir}"
+            if [[ "$target_dir" =~ /env/ ]] || [[ "$target_dir" =~ ^env/ ]]; then
+              echo "Skipping env directory: $target_dir"
               continue
             fi
             
             # Ensure the directory is within hli/ or services/
-            if [[ "${target_dir}" =~ ^hli/ ]] || [[ "${target_dir}" =~ ^services/ ]]; then
+            if [[ "$target_dir" =~ ^hli/ ]] || [[ "$target_dir" =~ ^services/ ]]; then
               # Add to TARGETS if not already present
-              if ! echo "${TARGETS}" | grep -Fxq "${target_dir}"; then
-                TARGETS="${TARGETS}${target_dir}"$'\n'
-                echo "Found target: ${target_dir}"
+              if ! echo "$TARGETS" | grep -Fxq "$target_dir"; then
+                TARGETS="$TARGETS$target_dir"$'\n'
+                echo "Found target: $target_dir"
               fi
             fi
           fi
@@ -102,29 +102,29 @@
       fi
       
       # Remove duplicates and sort
-      TARGETS=$(echo -e "${TARGETS}" | grep -v '^$' | sort -u || true)
+      TARGETS=$(echo -e "$TARGETS" | grep -v '^$' | sort -u || true)
       
       echo "=========================================="
       echo "Discovered Terraform targets:"
-      echo "${TARGETS}" || echo "No targets found"
+      echo "$TARGETS" || echo "No targets found"
       echo "=========================================="
       
       # Build JSON array for matrix and artifacts
-      if [ -n "${TARGETS}" ]; then
+      if [ -n "$TARGETS" ]; then
         # Create JSON array for matrix
-        JSON_TARGETS=$(echo "${TARGETS}" | jq -R . | jq -s -c .)
-        echo "{\"changed_targets\": ${JSON_TARGETS}}" > changed-targets.json
+        JSON_TARGETS=$(echo "$TARGETS" | jq -R . | jq -s -c .)
+        echo "{\"changed_targets\": $JSON_TARGETS}" > changed-targets.json
         
         # Create matrix file for GitLab parallel matrix (YAML format)
         # GitLab matrix expects a YAML array format
         echo "TARGET:" > matrix-targets.yml
-        echo "${TARGETS}" | sed 's/^/  - /' >> matrix-targets.yml
+        echo "$TARGETS" | sed 's/^/  - /' >> matrix-targets.yml
         
         # Also create a simple text file for easy parsing
-        echo "${TARGETS}" > changed-targets.txt
+        echo "$TARGETS" > changed-targets.txt
         
         # Create dotenv file (KEY=VALUE format, one per line)
-        echo "CHANGED_TARGETS_JSON=\"${JSON_TARGETS}\"" > changed-targets.env
+        echo "CHANGED_TARGETS_JSON=\"$JSON_TARGETS\"" > changed-targets.env
         
         echo "Matrix JSON:"
         cat changed-targets.json
@@ -132,7 +132,7 @@
         echo "Matrix YAML:"
         cat matrix-targets.yml
         
-        echo "Found $(echo "${TARGETS}" | wc -l) changed targets"
+        echo "Found $(echo "$TARGETS" | wc -l) changed targets"
       else
         echo "No Terraform targets found - creating empty matrix"
         echo "{\"changed_targets\": []}" > changed-targets.json

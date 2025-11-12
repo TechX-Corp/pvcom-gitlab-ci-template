@@ -35,8 +35,8 @@ generate_child_pipeline:
         {
           echo "stages: []"
           echo "variables:"
-          echo "  PIPELINE_MODE: \"${PIPELINE_MODE}\""
-          echo "  ENVIRONMENT: \"${ENVIRONMENT}\""
+          echo "  PIPELINE_MODE: \"$PIPELINE_MODE\""
+          echo "  ENVIRONMENT: \"$ENVIRONMENT\""
           echo ""
           echo "workflow:"
           echo "  rules:"
@@ -51,7 +51,7 @@ generate_child_pipeline:
       
       # Use the script to generate child pipeline
       chmod +x .gitlab/scripts/generate-child-pipeline.sh
-      bash .gitlab/scripts/generate-child-pipeline.sh changed-targets.json "${PIPELINE_MODE}" "${ENVIRONMENT}"
+      bash .gitlab/scripts/generate-child-pipeline.sh changed-targets.json "$PIPELINE_MODE" "$ENVIRONMENT"
       
       echo "Child pipeline generated:"
       cat child-pipeline.yml

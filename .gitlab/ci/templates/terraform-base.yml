@@ -13,9 +13,9 @@
     - |
       # Setup working directory (only if TARGET is set)
       if [ -n "${TARGET:-}" ]; then
-        cd "${TARGET}" || { echo "ERROR: Target directory ${TARGET} not found"; exit 1; }
+        cd "$TARGET" || { echo "ERROR: Target directory $TARGET not found"; exit 1; }
         echo "Working directory: $(pwd)"
-        echo "Target: ${TARGET}"
+        echo "Target: $TARGET"
       else
         echo "Working directory: $(pwd) (root - processing multiple targets)"
       fi
@@ -32,7 +32,7 @@
 # Terraform Init Template
 # ============================================
 # Handles Terraform initialization with S3 backend configuration
-# State key format: tfstate/<account-name>/<target>/env/${ENVIRONMENT}/terraform.tfstate
+# State key format: tfstate/<account-name>/<target>/env/$ENVIRONMENT/terraform.tfstate
 # ============================================
 
 .tf_init:
@@ -41,8 +41,8 @@
       set -euo pipefail
       
       echo "=========================================="
-      echo "Terraform Init for ${TARGET}"
-      echo "Environment: ${ENVIRONMENT}"
+      echo "Terraform Init for $TARGET"
+      echo "Environment: $ENVIRONMENT"
       echo "=========================================="
       
       # Clean up any existing terraform state
@@ -58,20 +58,20 @@
       # Build state key based on TARGET path
       # Format: tfstate/<account-name>/<target>/env/<environment>/terraform.tfstate
       # Example: tfstate/pvcombank/hli/infra/kms/env/development/terraform.tfstate
-      TF_STATE_KEY="tfstate/${TF_ACCOUNT_NAME}/${TARGET}/env/${ENVIRONMENT}/terraform.tfstate"
+      TF_STATE_KEY="tfstate/$TF_ACCOUNT_NAME/$TARGET/env/$ENVIRONMENT/terraform.tfstate"
       
       echo "Backend configuration:"
-      echo "  Bucket: ${TF_BACKEND_S3}"
+      echo "  Bucket: $TF_BACKEND_S3"
       echo "  Region: $AWS_DEFAULT_REGION"
-      echo "  State key: ${TF_STATE_KEY}"
-      echo "  Role ARN: arn:aws:iam::${BACKEND_ACCOUNT_ID}:role/${BACKEND_IAM_ROLE_NAME}"
+      echo "  State key: $TF_STATE_KEY"
+      echo "  Role ARN: arn:aws:iam::$BACKEND_ACCOUNT_ID:role/$BACKEND_IAM_ROLE_NAME"
       
       # Initialize with backend configuration
       terraform init -reconfigure \
-        -backend-config="bucket=${TF_BACKEND_S3}" \
-        -backend-config="key=${TF_STATE_KEY}" \
+        -backend-config="bucket=$TF_BACKEND_S3" \
+        -backend-config="key=$TF_STATE_KEY" \
         -backend-config="region=$AWS_DEFAULT_REGION" \
-        -backend-config="role_arn=arn:aws:iam::${BACKEND_ACCOUNT_ID}:role/${BACKEND_IAM_ROLE_NAME}"
+        -backend-config="role_arn=arn:aws:iam::$BACKEND_ACCOUNT_ID:role/$BACKEND_IAM_ROLE_NAME"
       
       # Validate terraform configuration
       echo "Running terraform validate..."
