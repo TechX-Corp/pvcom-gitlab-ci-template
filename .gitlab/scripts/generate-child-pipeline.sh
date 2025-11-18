@@ -126,7 +126,7 @@ terraform_plan_nonprod:
   stage: plan
   tags:
     - aws
-    - \$RUNNER_TAG_NONPROD
+    - \$RUNNER_TAG_DEV
   needs:
     - job: terraform_lint
       optional: true
@@ -137,7 +137,7 @@ terraform_plan_nonprod:
       - TARGET:
 $MATRIX_TARGETS
   variables:
-    BACKEND_IAM_ROLE_NAME: \$BACKEND_ROLE_NONPROD
+    BACKEND_IAM_ROLE_NAME: \$BACKEND_ROLE_DEV
 
   rules:
     - if: \$PIPELINE_MODE == "ci" && \$ENVIRONMENT =~ /^(dev|stg)$/
@@ -176,13 +176,13 @@ terraform_apply_nonprod:
   stage: apply
   tags:
     - aws
-    - \$RUNNER_TAG_NONPROD
+    - \$RUNNER_TAG_DEV
   parallel:
     matrix:
       - TARGET:
 $MATRIX_TARGETS
   variables:
-    BACKEND_IAM_ROLE_NAME: \$BACKEND_ROLE_NONPROD
+    BACKEND_IAM_ROLE_NAME: \$BACKEND_ROLE_DEV
   environment:
     name: \$ENVIRONMENT
     action: start

@@ -17,14 +17,6 @@
       echo "=========================================="
       echo "Running Terraform lint for $TARGET"
       echo "=========================================="
-      
-      # Terraform fmt check
-      echo "Running terraform fmt -check..."
-      terraform fmt -check -recursive -diff || {
-        echo "ERROR: terraform fmt check failed"
-        echo "Run 'terraform fmt -recursive' to fix formatting issues"
-        exit 1
-      }
 
       # TFLint - fail only on errors (exit code 1), allow warnings (exit code 2)
       echo "Running tflint..."

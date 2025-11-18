@@ -13,4 +13,29 @@
     - default
   script:
     - |
-      checkov -d . --skip-download
+      set -euo pipefail
+      
+      echo "=========================================="
+      echo "Running security scan for $TARGET"
+      echo "=========================================="
+      
+      # Checkov security scanning
+      echo "Running Checkov..."
+      
+      # Check for Checkov config file at root
+      CHECKOV_CONFIG="$CI_PROJECT_DIR/.checkov.yaml"
+      CHECKOV_CMD="checkov -d . --skip-download"
+      
+      if [ -f "$CHECKOV_CONFIG" ]; then
+        echo "✓ Found Checkov config: .checkov.yml"
+        CHECKOV_CMD="$CHECKOV_CMD --config-file $CHECKOV_CONFIG"
+      else
+        echo "  No Checkov config found at .checkov.yml"
+      fi
+      
+      echo "Running: $CHECKOV_CMD"
+      $CHECKOV_CMD
+      
+      echo "=========================================="
+      echo "Security scan completed for $TARGET"
+      echo "=========================================="

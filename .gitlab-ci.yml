@@ -43,6 +43,9 @@ workflow:
   rules:
     # Run CI pipeline on merge requests
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - hli/**/*
+        - services/**/*
       variables:
         PIPELINE_MODE: "ci"
         # Use target branch name as environment (dev, stg, prod)
@@ -50,6 +53,22 @@ workflow:
     
     # Run CD pipeline on push to main branches (dev, stg, prod)
     - if: $CI_COMMIT_BRANCH && $CI_COMMIT_BRANCH =~ /^(dev|stg|prod)$/
+      changes:
+        - hli/**/*
+        - services/**/*
       variables:
         PIPELINE_MODE: "cd"
         ENVIRONMENT: $CI_COMMIT_BRANCH
+    
+    # Run CD pipeline on push to main (defaults to dev environment) (only if hli/ or services/ changed)
+    - if: $CI_COMMIT_BRANCH == "main"
+      changes:
+        - hli/**/*
+        - services/**/*
+      variables:
+        PIPELINE_MODE: "cd"
+        ENVIRONMENT: "dev"
+    
+    # Skip pipeline for other branches (optional - remove this rule to allow all branches)
+    # - when: never
+

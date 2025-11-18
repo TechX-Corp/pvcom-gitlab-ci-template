@@ -34,8 +34,8 @@
         # Fetch target branch for comparison
         git fetch --no-tags origin "$BASE_REF:$BASE_REF" || true
         
-        # Get changed files
-        CHANGED_FILES=$(git diff --name-only "origin/$BASE_REF...HEAD" || git diff --name-only "$BASE_REF...HEAD" || true)
+        # Get changed files (excluding deleted files)
+        CHANGED_FILES=$(git diff --diff-filter=d --name-only "origin/$BASE_REF...HEAD" || git diff --diff-filter=d --name-only "$BASE_REF...HEAD" || true)
       else
         # Push mode: compare with previous commit
         echo "Push mode: comparing current commit with previous commit"
@@ -51,11 +51,11 @@
           # Merge commit - compare with first parent
           echo "Detected merge commit - comparing with first parent"
           PARENT_COMMIT=$(git show --format='%P' "$CURRENT_COMMIT" | cut -d' ' -f1)
-          CHANGED_FILES=$(git diff --name-only "$PARENT_COMMIT" "$CURRENT_COMMIT" || true)
+          CHANGED_FILES=$(git diff --diff-filter=d --name-only "$PARENT_COMMIT" "$CURRENT_COMMIT" || true)
         else
           # Single parent commit
           PREV_COMMIT=$(git rev-parse HEAD~1 2>/dev/null || git rev-parse HEAD)
-          CHANGED_FILES=$(git diff --name-only "$PREV_COMMIT" HEAD || true)
+          CHANGED_FILES=$(git diff --diff-filter=d --name-only "$PREV_COMMIT" HEAD || true)
         fi
       fi
       

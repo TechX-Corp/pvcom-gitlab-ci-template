@@ -6,13 +6,13 @@
 
 .terraform_plan_job:
   extends: 
-    - .terraform_base
     - .tf_init
   variables:
       # Fargate
     FARGATE_CLUSTER: "spot"
   script:
     - |
+      #!/bin/bash
       set -euo pipefail
       
       echo "=========================================="
@@ -27,33 +27,44 @@
         git config --global url."https://oauth2:$TF_MODULES_TOKEN@github.com".insteadOf "https://github.com" || true
       fi
       
-      # Load environment-specific variables if they exist
-      # Check both root-level env/ and division-level env/ directories
+      # Load environment-specific variables from root module path downwards
+      # Format: root -> division -> current (current has highest precedence)
       VAR_FILES=""
       
-      # Root-level env (e.g., /env/dev/terraform.tfvars)
-      # Calculate path to root from current TARGET directory
-      ROOT_ENV_PATH=""
-      if [[ "$TARGET" =~ ^hli/ ]] || [[ "$TARGET" =~ ^services/ ]]; then
-        # For hli/* or services/*, root is 3 levels up
-        ROOT_ENV_PATH="../../../env/$ENVIRONMENT/terraform.tfvars"
+      echo "Checking for terraform.tfvars files from root to current path..."
+      echo "TARGET path: $TARGET"
+      
+      # 1. Root-level env (e.g., /env/dev/terraform.tfvars)
+      ROOT_ENV_FILE="$CI_PROJECT_DIR/env/$ENVIRONMENT/terraform.tfvars"
+      if [ -f "$ROOT_ENV_FILE" ]; then
+        echo "✓ Found: env/$ENVIRONMENT/terraform.tfvars (root-level)"
+        VAR_FILES="$VAR_FILES -var-file=$ROOT_ENV_FILE"
+      else
+        echo "  Not found: env/$ENVIRONMENT/terraform.tfvars"
       fi
       
-      if [ -n "$ROOT_ENV_PATH" ] && [ -f "$ROOT_ENV_PATH" ]; then
-        echo "Found $ROOT_ENV_PATH (root-level)"
-        VAR_FILES="$VAR_FILES -var-file=$ROOT_ENV_PATH"
+      # 2. Division-level env (e.g., hli/infra/env/dev or services/storage-layer/env/dev)
+      # Extract division path (first two path segments for hli/services)
+      if echo "$TARGET" | grep -qE "^(hli|services)/"; then
+        # Extract first two path segments (e.g., "hli/infra/vpc" -> "hli/infra")
+        DIVISION_PATH=$(echo "$TARGET" | cut -d'/' -f1-2)
+        DIVISION_ENV_FILE="$CI_PROJECT_DIR/$DIVISION_PATH/env/$ENVIRONMENT/terraform.tfvars"
+        
+        if [ -f "$DIVISION_ENV_FILE" ]; then
+          echo "✓ Found: $DIVISION_PATH/env/$ENVIRONMENT/terraform.tfvars (division-level)"
+          VAR_FILES="$VAR_FILES -var-file=$DIVISION_ENV_FILE"
+        else
+          echo "  Not found: $DIVISION_PATH/env/$ENVIRONMENT/terraform.tfvars"
+        fi
       fi
 
-      # Division-level env (e.g., hli/infra/env/dev/terraform.tfvars)
-      if [ -f "../env/$ENVIRONMENT/terraform.tfvars" ]; then
-        echo "Found env/$ENVIRONMENT/terraform.tfvars (division-level)"
-        VAR_FILES="$VAR_FILES -var-file=../env/$ENVIRONMENT/terraform.tfvars"
-      fi
-
-      # Current directory terraform.tfvars
-      if [ -f "terraform.tfvars" ]; then
-        echo "Found terraform.tfvars in current directory"
-        VAR_FILES="$VAR_FILES -var-file=terraform.tfvars"
+      # 3. Current directory terraform.tfvars
+      CURRENT_TFVARS="$CI_PROJECT_DIR/$TARGET/terraform.tfvars"
+      if [ -f "$CURRENT_TFVARS" ]; then
+        echo "✓ Found: $TARGET/terraform.tfvars (current directory)"
+        VAR_FILES="$VAR_FILES -var-file=$CURRENT_TFVARS"
+      else
+        echo "  Not found: $TARGET/terraform.tfvars"
       fi
 
       # Validate VAR_FILES
@@ -88,13 +99,13 @@
 
 .terraform_apply_job:
   extends:
-    - .terraform_base
     - .tf_init
   variables:
     # Fargate
     FARGATE_CLUSTER: "ondemand"
   script:
     - |
+      #!/bin/bash
       set -euo pipefail
       
       echo "=========================================="
@@ -109,32 +120,44 @@
         git config --global url."https://oauth2:$TF_MODULES_TOKEN@github.com".insteadOf "https://github.com" || true
       fi
 
-      # Check both root-level env/ and division-level env/ directories
+      # Load environment-specific variables from root module path downwards
+      # Format: root -> division -> current (current has highest precedence)
       VAR_FILES=""
       
-      # Root-level env (e.g., /env/dev/terraform.tfvars)
-      # Calculate path to root from current TARGET directory
-      ROOT_ENV_PATH=""
-      if [[ "$TARGET" =~ ^hli/ ]] || [[ "$TARGET" =~ ^services/ ]]; then
-        # For hli/* or services/*, root is 3 levels up
-        ROOT_ENV_PATH="../../../env/$ENVIRONMENT/terraform.tfvars"
+      echo "Checking for terraform.tfvars files from root to current path..."
+      echo "TARGET path: $TARGET"
+      
+      # 1. Root-level env (e.g., /env/dev/terraform.tfvars)
+      ROOT_ENV_FILE="$CI_PROJECT_DIR/env/$ENVIRONMENT/terraform.tfvars"
+      if [ -f "$ROOT_ENV_FILE" ]; then
+        echo "✓ Found: env/$ENVIRONMENT/terraform.tfvars (root-level)"
+        VAR_FILES="$VAR_FILES -var-file=$ROOT_ENV_FILE"
+      else
+        echo "  Not found: env/$ENVIRONMENT/terraform.tfvars"
       fi
       
-      if [ -n "$ROOT_ENV_PATH" ] && [ -f "$ROOT_ENV_PATH" ]; then
-        echo "Found $ROOT_ENV_PATH (root-level)"
-        VAR_FILES="$VAR_FILES -var-file=$ROOT_ENV_PATH"
+      # 2. Division-level env (e.g., hli/infra/env/dev or services/storage-layer/env/dev)
+      # Extract division path (first two path segments for hli/services)
+      if echo "$TARGET" | grep -qE "^(hli|services)/"; then
+        # Extract first two path segments (e.g., "hli/infra/vpc" -> "hli/infra")
+        DIVISION_PATH=$(echo "$TARGET" | cut -d'/' -f1-2)
+        DIVISION_ENV_FILE="$CI_PROJECT_DIR/$DIVISION_PATH/env/$ENVIRONMENT/terraform.tfvars"
+        
+        if [ -f "$DIVISION_ENV_FILE" ]; then
+          echo "✓ Found: $DIVISION_PATH/env/$ENVIRONMENT/terraform.tfvars (division-level)"
+          VAR_FILES="$VAR_FILES -var-file=$DIVISION_ENV_FILE"
+        else
+          echo "  Not found: $DIVISION_PATH/env/$ENVIRONMENT/terraform.tfvars"
+        fi
       fi
 
-      # Division-level env (e.g., hli/infra/env/dev/terraform.tfvars)
-      if [ -f "../env/$ENVIRONMENT/terraform.tfvars" ]; then
-        echo "Found env/$ENVIRONMENT/terraform.tfvars (division-level)"
-        VAR_FILES="$VAR_FILES -var-file=../env/$ENVIRONMENT/terraform.tfvars"
-      fi
-
-      # Current directory terraform.tfvars
-      if [ -f "terraform.tfvars" ]; then
-        echo "Found terraform.tfvars in current directory"
-        VAR_FILES="$VAR_FILES -var-file=terraform.tfvars"
+      # 3. Current directory terraform.tfvars
+      CURRENT_TFVARS="$CI_PROJECT_DIR/$TARGET/terraform.tfvars"
+      if [ -f "$CURRENT_TFVARS" ]; then
+        echo "✓ Found: $TARGET/terraform.tfvars (current directory)"
+        VAR_FILES="$VAR_FILES -var-file=$CURRENT_TFVARS"
+      else
+        echo "  Not found: $TARGET/terraform.tfvars"
       fi
       # Build terraform apply command with auto-approve
       TF_APPLY_CMD="terraform apply -no-color -auto-approve $VAR_FILES"
